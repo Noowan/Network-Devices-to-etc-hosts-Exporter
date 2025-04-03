@@ -88,4 +88,3 @@ dmypy.json
 cython_debug/
 hosts.txt
 *.iml
-*.xml
