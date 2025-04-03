@@ -7,6 +7,7 @@
 # 5. generate /etc/hosts with interfaces of devices
 # 6. Rewrite code for multithreading
 # 7. Get hosts from zabbix API
+# 8. Auto change /etc/hosts on DNS
 
 DEVICES_FILENAME = 'hosts.txt'
 
@@ -14,6 +15,7 @@ def read_devices_file_to_list_of_tuples(_filename: str) -> list:
     with open(_filename, "r", encoding="utf-8") as somefile:
         linesfromfile = somefile.read()
         linesfromfile = linesfromfile.replace("\n", "\n\n\n\n\n")
+        linesfromfile = linesfromfile.replace(" ","-")
     lines = linesfromfile.split(sep="\n\n\n\n\n")
     devices = []
     for str in lines:
@@ -24,14 +26,17 @@ def sort_devices_by_ip(_devices: list) -> list:
     return sorted(_devices, key=lambda device: tuple(map(int, device[1].split('.'))))
 
 def generate_etc_hosts_for_loopbacks(_devices):
-
+    with open('hosts_loopbacks.txt', "w", encoding="utf-8") as somefile:
+        for device in _devices:
+            somefile.writelines(f"{device[1]} {device[0]}.lo0.soptus.stn.transneft.ru {device[0]}.soptus.stn.transneft.ru\n")
+    print("/etc/hosts with loopbacks generated")
 
 
 
 if __name__ == '__main__':
     devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
     sortedByIpDevices = sort_devices_by_ip(devices)
-
+    generate_etc_hosts_for_loopbacks(sortedByIpDevices)
 
 
     print()
