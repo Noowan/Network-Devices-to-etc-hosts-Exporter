@@ -88,3 +88,4 @@ dmypy.json
 cython_debug/
 hosts.txt
 *.iml
+credentials.env
