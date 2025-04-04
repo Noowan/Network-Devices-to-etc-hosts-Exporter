@@ -1,8 +1,8 @@
 #TO-DO-PLAN
-# 1. Parse devices lists done!
-# 2. Sort list by ip done!
-# 2. Generate /etc/hosts with loopbacks
-# 3. Drop all APKSH from devices lists
+#DONE 1. Parse devices lists
+#DONE 2. Sort list by ip
+#DONE 2. Generate /etc/hosts with loopbacks
+#DONE 3. Drop all APKSH from devices lists
 # 4. Connect to all vendors and get all interfaces
 # 5. generate /etc/hosts with interfaces of devices
 # 6. Rewrite code for multithreading
@@ -22,22 +22,26 @@ def read_devices_file_to_list_of_tuples(_filename: str) -> list:
         strsplitted = str.split(sep="\t")
         devices.append((strsplitted[0], strsplitted[1], strsplitted[2], strsplitted[3]))
     return devices
+
 def sort_devices_by_ip(_devices: list) -> list:
     return sorted(_devices, key=lambda device: tuple(map(int, device[1].split('.'))))
-
 def generate_etc_hosts_for_loopbacks(_devices):
     with open('hosts_loopbacks.txt', "w", encoding="utf-8") as somefile:
         for device in _devices:
             somefile.writelines(f"{device[1]} {device[0]}.lo0.soptus.stn.transneft.ru {device[0]}.soptus.stn.transneft.ru\n")
     print("/etc/hosts with loopbacks generated")
 
-
+def drop_apksh_from_list(_devices: list) -> list:
+    for device in _devices:
+        if device[2] == "АПКШ":
+            #print(device)
+            _devices.remove(device)
+    return _devices
 
 if __name__ == '__main__':
     devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
     sortedByIpDevices = sort_devices_by_ip(devices)
     generate_etc_hosts_for_loopbacks(sortedByIpDevices)
-
-
+    filteredDevices = drop_apksh_from_list(sortedByIpDevices)
     print()
 
