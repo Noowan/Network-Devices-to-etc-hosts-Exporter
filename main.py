@@ -8,9 +8,12 @@
 # 6. Rewrite code for multithreading
 # 7. Get hosts from zabbix API
 # 8. Auto change /etc/hosts on DNS
+import Huawei
+import Juniper
+import Cisco
+import ECI
 
 DEVICES_FILENAME = 'hosts.txt'
-
 
 def read_devices_file_to_list_of_tuples(_filename: str) -> list:
     with open(_filename, "r", encoding="utf-8") as somefile:
@@ -22,7 +25,7 @@ def read_devices_file_to_list_of_tuples(_filename: str) -> list:
     for line in lines:
         line_splitted = line.split(sep="\t")
         devices_list.append((line_splitted[0], line_splitted[1], line_splitted[2], line_splitted[3]))
-    return devices
+    return devices_list
 
 
 def sort_devices_by_ip(_devices: list) -> list:
@@ -44,10 +47,25 @@ def drop_apksh_from_list(_devices: list) -> list:
             _devices.remove(device)
     return _devices
 
+def get_interfaces_addresses(_device):
+    match _device[2]:
+        case "ECI":
+            pass
+        case "Cisco":
+            pass
+        case "Huawei":
+            pass
+        case "Juniper":
+            pass
+        case _:
+            print(f'{_device} - UNKNOWN DEVICE')
 
 if __name__ == '__main__':
     devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
     sortedByIpDevices = sort_devices_by_ip(devices)
     generate_etc_hosts_for_loopbacks(sortedByIpDevices)
     filteredDevices = drop_apksh_from_list(sortedByIpDevices)
+    interfacesAndAddressesList = []
+    for device in filteredDevices:
+        interfacesAndAddressesList.append(get_interfaces_addresses(device))
     print()
