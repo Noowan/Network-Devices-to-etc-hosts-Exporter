@@ -57,13 +57,11 @@ def get_interfaces_addresses(_device):
         case "ECI":
             pass
         case "Cisco":
-            result = Cisco.get_interfaces_and_ips(_device)
-            return result
+            return Cisco.get_interfaces_and_ips(_device)
         case "Huawei":
-            result = Huawei.get_interfaces_and_ips(_device)
-            return result
+            return Huawei.get_interfaces_and_ips(_device)
         case "Juniper":
-            pass
+            return Juniper.get_interfaces_and_ips(_device)
         case _:
             print(f'{_device} - UNKNOWN DEVICE')
 
