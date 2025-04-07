@@ -85,6 +85,3 @@ def get_interfaces_and_ips(_device):
         ifName = ifName.replace("Vlanif", "vl")
         interfacesAddressesList.append((_device[0], ifName, ifIpAddress))
     return interfacesAddressesList
-
-
-
