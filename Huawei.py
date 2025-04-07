@@ -83,5 +83,6 @@ def get_interfaces_and_ips(_device):
         ifIpAddress = re.search("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", line).group(0)
         ifName = ifName.replace("GigabitEthernet", "gi")
         ifName = ifName.replace("Vlanif", "vl")
+        ifName = ifName.replace("/", "-")
         interfacesAddressesList.append((_device[0], ifName, ifIpAddress))
     return interfacesAddressesList
