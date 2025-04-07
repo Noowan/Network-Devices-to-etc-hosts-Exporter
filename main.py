@@ -54,7 +54,8 @@ def get_interfaces_addresses(_device):
         case "Cisco":
             pass
         case "Huawei":
-            pass
+            result = Huawei.get_interfaces_and_ips(_device)
+            return result
         case "Juniper":
             pass
         case _:
@@ -67,5 +68,7 @@ if __name__ == '__main__':
     filteredDevices = drop_apksh_from_list(sortedByIpDevices)
     interfacesAndAddressesList = []
     for device in filteredDevices:
-        interfacesAndAddressesList.append(get_interfaces_addresses(device))
+        result = get_interfaces_addresses(device)
+        if result:
+            interfacesAndAddressesList.extend(result)
     print()
