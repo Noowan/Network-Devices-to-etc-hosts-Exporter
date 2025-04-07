@@ -41,10 +41,15 @@ def generate_etc_hosts_for_loopbacks(_devices):
 
 
 def drop_apksh_from_list(_devices: list) -> list:
-    for device in _devices:
-        if device[2] == "АПКШ":
-            # print(device)
-            _devices.remove(device)
+    itemsToDelete = []
+    for i in range(0, len(_devices)):
+        if _devices[i][2] == "АПКШ":
+            itemsToDelete.append(_devices[i])
+    for m in range(0, len(itemsToDelete)):
+        try:
+            _devices.remove(itemsToDelete[m])
+        except:
+            continue
     return _devices
 
 def get_interfaces_addresses(_device):
