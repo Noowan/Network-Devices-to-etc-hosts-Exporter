@@ -57,7 +57,8 @@ def get_interfaces_addresses(_device):
         case "ECI":
             pass
         case "Cisco":
-            pass
+            result = Cisco.get_interfaces_and_ips(_device)
+            return result
         case "Huawei":
             result = Huawei.get_interfaces_and_ips(_device)
             return result
