@@ -81,4 +81,5 @@ if __name__ == '__main__':
         result = get_interfaces_addresses(device)
         if result:
             interfacesAndAddressesList.extend(result)
+
     print()

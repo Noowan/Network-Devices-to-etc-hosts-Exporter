@@ -52,7 +52,7 @@ def get_interfaces_and_ips(_device):
     splittedOutput = output.split(sep='\r\n')
 
     #drop all before Interfaces
-    searchPattern = 'Interface              IP-Address      OK\? Method Status                Protocol'
+    searchPattern = 'Interface\s*IP-Address\s*OK'
     for i in range(len(splittedOutput)):
         if re.search(searchPattern,splittedOutput[i]):
             for j in range(0, i+1):
@@ -78,7 +78,7 @@ def get_interfaces_and_ips(_device):
     #make list of tuples with address, interface values
     interfacesAddressesList = []
     for line in splittedOutput:
-        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlan\d+|GigabitEthernet\d+/\d+|Gi\d+/\d+/\d+.\d+)", line).group(0)
+        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlan\d+|GigabitEthernet\d+/\d+|Gi\d+/\d+/\d+.\d+|Tunnel\d)", line).group(0)
         ifIpAddress = re.search("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", line).group(0)
         ifName = ifName.replace("GigabitEthernet", "gi")
         ifName = ifName.replace("Vlan", "vl")
