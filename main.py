@@ -55,7 +55,13 @@ def drop_apksh_from_list(_devices: list) -> list:
 def get_interfaces_addresses(_device):
     match _device[2]:
         case "ECI":
-            pass
+            match _device[3]:
+                case "AS9215":
+                    return ECI.get_interfaces_and_ips_with_telnet(_device)
+                case "SR9604":
+                    return ECI.get_interfaces_and_ips_with_SSH(_device)
+                case _:
+                    print(f'{_device} - UNKNOWN ECI DEVICE')
         case "Cisco":
             return Cisco.get_interfaces_and_ips(_device)
         case "Huawei":

@@ -76,7 +76,6 @@ def get_interfaces_and_ips(_device):
         if itemsToWorkWith[i].startswith('    '):
             itemsToWorkWith[i] = itemsToWorkWith[i-1].split()[0] + " " + itemsToWorkWith[i]
 
-
     #delete unused interfaces
     itemsToDelete = list()
     searchPatterns = ['bme', 'lo0', '128.0.0.', '127.0.0.1', 'down', 'em']
@@ -89,8 +88,6 @@ def get_interfaces_and_ips(_device):
             itemsToWorkWith.remove(itemsToDelete[m])
         except:
             continue
-
-
 
     #make list of tuples with address, interface values
     interfacesAddressesList = []
