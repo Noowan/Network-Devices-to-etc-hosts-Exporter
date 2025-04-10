@@ -27,11 +27,11 @@ def connect_ssh(IP: str, DeviceName: str="NONAME") -> Channel:
         return
     try:
         shell = client.invoke_shell()
+        print(f"{DeviceName}, {IP}. Connected.")
+        return shell
     except Exception as e:
         print(f"{DeviceName},{IP}. Can't invoke shell. Reason {e}")
         client.close()
-    print(f"{DeviceName}, {IP}. Connected.")
-    return shell
 
 
 def get_interfaces_and_ips(_device):
@@ -52,15 +52,14 @@ def get_interfaces_and_ips(_device):
     splittedOutput = output.split(sep='\r\n')
 
     #drop all before Interfaces
-    searchPattern = 'Interface                         IP Address/Mask      Physical   Protocol  '
+    searchPattern = 'Interface\s+IP Address/Mask'
     for i in range(len(splittedOutput)):
         if re.search(searchPattern,splittedOutput[i]):
             for j in range(0, i+1):
                 splittedOutput.pop(0)
                 j += 1
             break
-    #drop last 2 strings with garbage
-    splittedOutput.pop()
+    #drop last 1 string with garbage
     splittedOutput.pop()
 
     #drop interfaces with operstatus down and adminstatus down and not interesting interfaces
@@ -79,7 +78,7 @@ def get_interfaces_and_ips(_device):
     #make list of tuples with address, interface values
     interfacesAddressesList = []
     for line in splittedOutput:
-        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlanif\d+)", line).group(0)
+        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlanif\d+|Eth-Trunk\d)", line).group(0)
         ifIpAddress = re.search("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", line).group(0)
         ifName = ifName.replace("GigabitEthernet", "gi")
         ifName = ifName.replace("Vlanif", "vl")
