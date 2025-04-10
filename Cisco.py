@@ -9,6 +9,7 @@ load_dotenv('credentials.env')
 SSH_USER = os.getenv('SSH_USER')
 SSH_PASSWORD = os.getenv('SSH_PASSWORD')
 
+
 def connect_ssh(IP: str, DeviceName: str="NONAME") -> Channel:
     client = paramiko.SSHClient()
     client.set_missing_host_key_policy(paramiko.AutoAddPolicy())
