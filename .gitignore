@@ -89,3 +89,4 @@ cython_debug/
 hosts.txt
 *.iml
 credentials.env
+hosts.txt
