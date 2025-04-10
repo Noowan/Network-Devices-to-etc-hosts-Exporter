@@ -61,6 +61,8 @@ def get_interfaces_and_ips(_device):
             break
     #drop last 1 string with garbage
     splittedOutput.pop()
+    if re.search("", splittedOutput[-1]):
+        splittedOutput.pop()
 
     #drop interfaces with operstatus down and adminstatus down and not interesting interfaces
     itemsToDelete = list()
@@ -78,7 +80,7 @@ def get_interfaces_and_ips(_device):
     #make list of tuples with address, interface values
     interfacesAddressesList = []
     for line in splittedOutput:
-        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlanif\d+|Eth-Trunk\d)", line).group(0)
+        ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlanif\d+|Eth-Trunk\d|Tunnel\d/\d/\d)", line).group(0)
         ifIpAddress = re.search("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", line).group(0)
         ifName = ifName.replace("GigabitEthernet", "gi")
         ifName = ifName.replace("Vlanif", "vl")

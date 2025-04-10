@@ -1,5 +1,6 @@
 import os
 import re
+import sys
 import telnetlib
 import time
 import paramiko
@@ -29,12 +30,18 @@ def get_interfaces_and_ips_with_telnet(_device:tuple) -> list:
         telnet.write(b"sh ip int br\n")
         time.sleep(3)
     except Exception as e:
-        print('TELNET' + str(e))
+        print(f"{_device[0]}, {_device[1]}. Not connected. Reason {e}")
+        return
     try:
         output = telnet.read_very_eager().decode("utf-8")
     except Exception as e:
-        print('TELNET' + str(e))
-    telnet.close()
+        print(f"{_device[0]}, {_device[1]}. Not connected. Reason {e}")
+        return
+
+    try:
+        telnet.close()
+    except:
+        exit(9)
 
     splittedOutput = output.split(sep='\r\n')
 

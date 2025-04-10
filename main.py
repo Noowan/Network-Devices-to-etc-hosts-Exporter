@@ -3,17 +3,23 @@
 # DONE 2. Sort list by ip
 # DONE 2. Generate /etc/hosts with loopbacks
 # DONE 3. Drop all APKSH from devices lists
-# 4. Connect to all vendors and get all interfaces
+# DONE 4. Connect to all vendors and get all interfaces
 # 5. generate /etc/hosts with interfaces of devices
 # 6. Rewrite code for multithreading
 # 7. Get hosts from zabbix API
 # 8. Auto change /etc/hosts on DNS
+import time
+
 import Huawei
 import Juniper
 import Cisco
 import ECI
+from threading import Thread
 
-DEVICES_FILENAME = 'hosts.txt'
+DEVICES_FILENAME = 'hosts1.txt'
+MAXTHREADS = 1000
+interfacesAndAddressesList = []
+
 
 def read_devices_file_to_list_of_tuples(_filename: str) -> list:
     with open(_filename, "r", encoding="utf-8") as somefile:
@@ -71,6 +77,11 @@ def get_interfaces_addresses(_device):
         case _:
             print(f'{_device} - UNKNOWN DEVICE')
 
+def main_func(_device):
+    result = get_interfaces_addresses(_device)
+    if result:
+        interfacesAndAddressesList.extend(result)
+
 if __name__ == '__main__':
     devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
     sortedByIpDevices = sort_devices_by_ip(devices)
@@ -78,8 +89,5 @@ if __name__ == '__main__':
     filteredDevices = drop_apksh_from_list(sortedByIpDevices)
     interfacesAndAddressesList = []
     for device in filteredDevices:
-        result = get_interfaces_addresses(device)
-        if result:
-            interfacesAndAddressesList.extend(result)
-
+        main_func(device)
     print()
