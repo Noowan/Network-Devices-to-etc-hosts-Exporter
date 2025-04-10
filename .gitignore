@@ -90,3 +90,4 @@ hosts.txt
 *.iml
 credentials.env
 hosts.txt
+hosts.env
