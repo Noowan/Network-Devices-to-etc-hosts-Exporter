@@ -16,8 +16,8 @@ import Cisco
 import ECI
 from threading import Thread
 
-DEVICES_FILENAME = 'hosts1.txt'
-MAXTHREADS = 1000
+DEVICES_FILENAME = 'hosts.txt'
+MAXTHREADS = 500
 interfacesAndAddressesList = []
 
 
@@ -82,12 +82,73 @@ def main_func(_device):
     if result:
         interfacesAndAddressesList.extend(result)
 
+def deleteDuplicateLoopbacks(_rawInfoAboutInterfacesAndAddresses, _deviceslist):
+    itemsToDelete = []
+    for tuple in _rawInfoAboutInterfacesAndAddresses:
+        for i in range(len(_deviceslist)):
+            if tuple[2] == _deviceslist[i][1]:
+                print(f'dup {tuple} == {_deviceslist[i]}. i = {i}')
+                itemsToDelete.append(tuple)
+    for i in range(len(itemsToDelete)):
+        _rawInfoAboutInterfacesAndAddresses.remove(itemsToDelete[i])
+    return _rawInfoAboutInterfacesAndAddresses
+
+
 if __name__ == '__main__':
     devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
     sortedByIpDevices = sort_devices_by_ip(devices)
-    generate_etc_hosts_for_loopbacks(sortedByIpDevices)
+    #generate_etc_hosts_for_loopbacks(sortedByIpDevices)
     filteredDevices = drop_apksh_from_list(sortedByIpDevices)
     interfacesAndAddressesList = []
-    for device in filteredDevices:
-        main_func(device)
-    print()
+
+    #for device in filteredDevices:
+    #    main_func(device)
+    threads = []
+    tries = int(len(filteredDevices) / MAXTHREADS)
+    leastTries = len(filteredDevices) % MAXTHREADS
+    START = 0
+    FINISH = MAXTHREADS
+
+    i = 1
+    while i <= tries:
+        for j in range(START, FINISH):
+            threads.append(
+                Thread(target=main_func, args=(filteredDevices[j], ), name=f"{filteredDevices[j]}:Thread"))
+            print(f"Thread {j} created")
+        for thread in threads:
+            # print(f"start {thread.name}")
+            thread.start()
+            time.sleep(0.1)
+        for thread in threads:
+            thread.join()
+        threads.clear()
+        START = FINISH
+        i = i + 1
+        FINISH = FINISH + MAXTHREADS
+    i = 1
+    if tries == 0:
+        j = -1
+    while i <= leastTries:
+        threads.append(
+            Thread(target=main_func, args=(filteredDevices[i+j], ), name=f"{filteredDevices[i+j]}:Thread"))
+        print(f"Thread {i + j} created")
+        i = i + 1
+    for thread in threads:
+        # print(f"start {thread.name}")
+        thread.start()
+    for thread in threads:
+        thread.join()
+    threads.clear()
+
+    #search duplicates in loopbacks list
+    clearedInterfacesAndAddressesList = []
+    clearedInterfacesAndAddressesList = deleteDuplicateLoopbacks(interfacesAndAddressesList, filteredDevices)
+
+    #place all gathered data in file
+    with open('hosts_all.txt', "w", encoding="utf-8") as somefile:
+        for device in filteredDevices:
+            somefile.writelines(
+                f"{device[1]} {device[0]}.lo0.soptus.stn.transneft.ru {device[0]}.soptus.stn.transneft.ru\n")
+        for item in clearedInterfacesAndAddressesList:
+            somefile.writelines(f"{item[2]} {item[0]}.{item[1]}.soptus.stn.transneft.ru\n")
+    print("hosts_all.txt generated")
