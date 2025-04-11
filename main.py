@@ -16,8 +16,8 @@ import Cisco
 import ECI
 from threading import Thread
 
-DEVICES_FILENAME = 'hosts.txt'
-MAXTHREADS = 500
+DEVICES_FILENAME = 'hosts.env'
+MAXTHREADS = 750
 interfacesAndAddressesList = []
 
 
@@ -141,7 +141,6 @@ if __name__ == '__main__':
     threads.clear()
 
     #search duplicates in loopbacks list
-    clearedInterfacesAndAddressesList = []
     clearedInterfacesAndAddressesList = deleteDuplicateLoopbacks(interfacesAndAddressesList, filteredDevices)
 
     #place all gathered data in file
