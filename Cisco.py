@@ -80,7 +80,7 @@ def get_interfaces_and_ips(_device):
     interfacesAddressesList = []
     for line in splittedOutput:
         try:
-            ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlan\d+|GigabitEthernet\d+/\d+|Gi\d+/\d+/\d+.\d+|Tunnel\d|FastEthernet\d/\d|Port-channel\d|GigabitEthernet\d)", line).group(0)
+            ifName = re.search("(GigabitEthernet\d+/\d+/\d+.\d+|GigabitEthernet\d+/\d+/\d+|Vlan\d+|GigabitEthernet\d+/\d+|Gi\d+/\d+/\d+.\d+|Tunnel\d|FastEthernet\d/\d|Port-channel\d|GigabitEthernet\d|Multilink\d+)", line).group(0)
             ifIpAddress = re.search("\d{1,3}\.\d{1,3}\.\d{1,3}\.\d{1,3}", line).group(0)
             ifName = ifName.replace("GigabitEthernet", "gi")
             ifName = ifName.replace("Vlan", "vl")
