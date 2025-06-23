@@ -91,3 +91,4 @@ hosts.txt
 credentials.env
 hosts.txt
 hosts.env
+params.env

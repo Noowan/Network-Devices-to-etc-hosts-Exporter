@@ -4,12 +4,14 @@
 # DONE 2. Generate /etc/hosts with loopbacks
 # DONE 3. Drop all APKSH from devices lists
 # DONE 4. Connect to all vendors and get all interfaces
-# 5. generate /etc/hosts with interfaces of devices
-# 6. Rewrite code for multithreading
-# 7. Get hosts from zabbix API
+# DONE 5. generate /etc/hosts with interfaces of devices
+# DONE 6. Rewrite code for multithreading
+# DONE 7. Get hosts from zabbix API
 # 8. Auto change /etc/hosts on DNS
+import os
 import time
-
+import requests
+from dotenv import load_dotenv
 import Huawei
 import Juniper
 import Cisco
@@ -17,8 +19,76 @@ import ECI
 from threading import Thread
 
 DEVICES_FILENAME = 'hosts.env'
-MAXTHREADS = 750
+MAXTHREADS = 1500
 interfacesAndAddressesList = []
+
+HEADERS={"Content-Type": 'application/json-rpc'}
+load_dotenv('params.env')
+API_TOKEN = os.getenv('API_TOKEN')
+URL = os.getenv('URL')
+
+
+
+def get_hosts_from_zabbix_api() -> list:
+
+    def get_hostgroups():
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "hostgroup.get",
+            "params": {
+                "output": ["groupid", "name"],
+            },
+            "auth": API_TOKEN,
+            "id": 1
+        }
+
+        response = requests.post(URL, json=payload, headers=HEADERS)
+        response.raise_for_status()
+        response = response.json()
+        return response['result']
+
+    def get_hosts(_groupids):
+        payload = {
+            "jsonrpc": "2.0",
+            "method": "host.get",
+            "params": {
+                "output": ["hostid", "host", "name", "status", "monitored_by"],
+                "groupids": _groupids,
+                "selectInterfaces": ["ip"],
+                "selectTags": ["tag", "value"]
+            },
+            "auth": API_TOKEN,
+            "id": 1
+        }
+
+        response = requests.post(URL, json=payload, headers=HEADERS)
+        response.raise_for_status()
+        response = response.json()
+        return response['result']
+
+
+    hostgroups = get_hostgroups()
+    hosts = []
+    for hostgroup in hostgroups:
+        items = get_hosts(hostgroup['groupid'])
+        for item in items:
+            if item["monitored_by"] == 1:
+                continue
+            if item["status"] == 1:
+                continue
+            hosts.append(item)
+    return hosts
+    print()
+
+def convert_devices_from_api_to_list_of_tuples(_devices_from_api: list) -> list:
+    devices_list = []
+    for line in _devices_from_api:
+        if len(line["tags"]) == 0:
+            devices_list.append((line["host"], line["interfaces"][0]["ip"],
+                                 "NO", "NO"))
+        else:
+            devices_list.append((line["host"], line["interfaces"][0]["ip"], line["tags"][0]["tag"], line["tags"][0]["value"]))
+    return devices_list
 
 
 def read_devices_file_to_list_of_tuples(_filename: str) -> list:
@@ -46,10 +116,12 @@ def generate_etc_hosts_for_loopbacks(_devices):
     print("/etc/hosts with loopbacks generated")
 
 
-def drop_apksh_from_list(_devices: list) -> list:
+def drop_wrong_devices_from_list(_devices: list) -> list:
     itemsToDelete = []
     for i in range(0, len(_devices)):
         if _devices[i][2] == "АПКШ":
+            itemsToDelete.append(_devices[i])
+        if _devices[i][2] == "Сторона":
             itemsToDelete.append(_devices[i])
     for m in range(0, len(itemsToDelete)):
         try:
@@ -90,15 +162,24 @@ def deleteDuplicateLoopbacks(_rawInfoAboutInterfacesAndAddresses, _deviceslist):
                 print(f'dup {tuple} == {_deviceslist[i]}. i = {i}')
                 itemsToDelete.append(tuple)
     for i in range(len(itemsToDelete)):
-        _rawInfoAboutInterfacesAndAddresses.remove(itemsToDelete[i])
+        try:
+            _rawInfoAboutInterfacesAndAddresses.remove(itemsToDelete[i])
+        except ValueError:
+            continue
     return _rawInfoAboutInterfacesAndAddresses
 
 
 if __name__ == '__main__':
-    devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
+    #FOR TXT file
+    #devices = read_devices_file_to_list_of_tuples(DEVICES_FILENAME)
+    #--------------
+    #FOR API REQUEST
+    devices_raw = get_hosts_from_zabbix_api()
+    devices = convert_devices_from_api_to_list_of_tuples(devices_raw)
+    #------------
     sortedByIpDevices = sort_devices_by_ip(devices)
     #generate_etc_hosts_for_loopbacks(sortedByIpDevices)
-    filteredDevices = drop_apksh_from_list(sortedByIpDevices)
+    filteredDevices = drop_wrong_devices_from_list(sortedByIpDevices)
     interfacesAndAddressesList = []
 
     #for device in filteredDevices:
