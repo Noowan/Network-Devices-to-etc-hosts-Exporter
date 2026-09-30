@@ -1,21 +1,19 @@
 """
-Модуль подключения к Huawei-устройствам по SSH.
+Module for connecting to Huawei devices via SSH.
 
-Точка входа: Cisco.get_interfaces_and_ips(device)
+The module does not parse the output — it only connects to the device,
+executes a set of show commands, and returns the raw text output.
+Parsing the output will be handled by a separate module/function.
 
-Модуль не занимается парсингом вывода — только подключается к устройству,
-выполняет набор show-команд и возвращает "сырой" текстовый вывод.
-Разбор (парсинг) вывода будет отдельным модулем/функцией.
+The login and password are retrieved from the SSH_USER and SSH_PASSWORD environment variables
+(they are already imported into the system and are simply read via os.environ here).
 
-Логин и пароль берутся из переменных окружения SSH_USER и SSH_PASSWORD
-(они уже импортированы в систему, здесь просто читаются через os.environ).
-
-Старое железо часто поддерживает только legacy-алгоритмы SSH
-(diffie-hellman-group1-sha1, ssh-rsa, 3des-cbc и т.п.), которые современный
-paramiko по умолчанию отключил из соображений безопасности. Поэтому ниже
-явно включается legacy-набор через paramiko.Transport._preferred_* —
-это единственный практичный способ "договориться" со старым Cisco IOS
-без танцев с конфигами ssh_config.
+Legacy hardware often supports only legacy SSH algorithms
+(diffie-hellman-group1-sha1, ssh-rsa, 3des-cbc, etc.), which modern
+paramiko disables by default for security reasons. Therefore, the legacy set
+is explicitly enabled below via paramiko.Transport._preferred_* —
+this is the only practical way to "negotiate" with old Cisco IOS
+without dealing with ssh_config files.
 """
 
 import os
@@ -25,17 +23,15 @@ import time
 
 import paramiko
 
-import main
-
-# Команды, которые нужно выполнить на устройстве.
-# Список можно расширять — модуль просто прогоняет их по очереди.
+# Commands to be executed on the device.
+# The list can be extended — the module just runs them one by one.
 DEFAULT_COMMANDS = [
     "display ip int br",
 ]
 
-# Legacy-алгоритмы, которые нужно добавить, чтобы подключаться к старому
-# железу. Добавляем их в начало списка предпочитаемых алгоритмов paramiko,
-# ничего не убирая — современные устройства продолжат работать как раньше.
+# Legacy algorithms that need to be added to connect to old
+# hardware. We add them to the beginning of paramiko's preferred algorithms list
+# without removing anything — modern devices will continue to work as before.
 _LEGACY_KEX = [
     "diffie-hellman-group1-sha1",
     "diffie-hellman-group14-sha1",
@@ -54,7 +50,7 @@ _LEGACY_KEYS = [
 
 
 def _patch_legacy_algorithms():
-    """Добавляет legacy-алгоритмы в список предпочитаемых у paramiko.Transport."""
+    """Adds legacy algorithms to the preferred list of paramiko.Transport."""
     for algo in _LEGACY_KEX:
         if algo not in paramiko.Transport._preferred_kex:
             paramiko.Transport._preferred_kex += (algo,)
@@ -69,27 +65,27 @@ def _patch_legacy_algorithms():
 _patch_legacy_algorithms()
 
 
-class CiscoConnectionError(Exception):
-    """Ошибка подключения или выполнения команд на устройстве Cisco."""
+class HuaweiConnectionError(Exception):
+    """Error connecting or executing commands on a Cisco device."""
 
 
 def get_interfaces_and_ips(device, commands=None, timeout=15):
     """
-    Подключается к устройству по SSH, выполняет show-команды
-    и возвращает их сырой вывод.
+    Connects to the device via SSH, executes show commands,
+    and returns their raw output.
 
-    :param device: hostname или IP-адрес устройства.
-    :param commands: список команд, по умолчанию DEFAULT_COMMANDS.
-    :param timeout: таймаут подключения/чтения, сек.
-    :return: dict {команда: текстовый вывод}
+    :param device: hostname or IP address of the device.
+    :param commands: list of commands, defaults to DEFAULT_COMMANDS.
+    :param timeout: connection/read timeout in seconds.
+    :return: dict {command: text output}
     """
     commands = commands or DEFAULT_COMMANDS
 
     user = os.environ.get("SSH_USER")
     password = os.environ.get("SSH_PASSWORD")
     if not user or not password:
-        raise CiscoConnectionError(
-            "SSH_USER / SSH_PASSWORD не заданы в переменных окружения"
+        raise HuaweiConnectionError(
+            "SSH_USER / SSH_PASSWORD are not set in environment variables"
         )
 
     client = paramiko.SSHClient()
@@ -105,27 +101,29 @@ def get_interfaces_and_ips(device, commands=None, timeout=15):
             allow_agent=False,
         )
     except (paramiko.SSHException, socket.error) as exc:
-        raise CiscoConnectionError(f"{device}: не удалось подключиться: {exc}")
+        raise HuaweiConnectionError(f"{device}: failed to connect: {exc}")
 
     try:
         shell = client.invoke_shell()
         shell.settimeout(timeout)
 
-        # отключаем постраничный вывод, иначе "show" команды
-        # будут ждать нажатия пробела на "--More--"
+        # disable pagination, otherwise "show" commands
+        # will wait for a spacebar press on "--More--"
         _send(shell, "screen-length 0 temporary")
+        time.sleep(0.1)
         _read_until_prompt(shell, timeout)
 
         output = {}
         for cmd in commands:
             _send(shell, cmd)
+            time.sleep(0.1)
             output[cmd] = _read_until_prompt(shell, timeout)
 
         return output
 
 
     except socket.timeout:
-        raise CiscoConnectionError(f"{device}: таймаут при выполнении команд")
+        raise HuaweiConnectionError(f"{device}: timeout during command execution")
     finally:
         client.close()
 
@@ -134,13 +132,13 @@ def _send(shell, command):
     shell.send(command + "\n")
 
 
-def _read_until_prompt(shell, timeout, idle_gap=0.5):
+def _read_until_prompt(shell, timeout, idle_gap=10):
     """
-    Читает вывод из интерактивной SSH-сессии, пока устройство не перестанет
-    что-то присылать (idle_gap секунд без новых данных) или не истечёт timeout.
+    Reads output from an interactive SSH session until the device stops
+    sending data (idle_gap seconds with no new data) or the timeout expires.
 
-    Простой и надёжный подход для Cisco IOS: точный regex под приглашение
-    (hostname#, hostname>) избыточен на этом этапе — парсингом займёмся отдельно.
+    A simple and reliable approach for Cisco IOS: a precise regex for the prompt
+    (hostname#, hostname>) is redundant at this stage — parsing will be handled separately.
     """
     buffer = b""
     deadline = time.monotonic() + timeout
@@ -159,16 +157,16 @@ def _read_until_prompt(shell, timeout, idle_gap=0.5):
 
 def parse_raw_output(raw_text: str, hostname: str, domain: str) -> list[str]:
     """
-    Разбирает вывод 'show ip interface brief' (в т.ч. без переносов строк
-    между интерфейсами) и возвращает список строк вида:
-    '172.16.50.5 SO-SGP-PKU0-SW-TP-1.gi0-0-0.soptus.stn.transneft.ru'
+    Parses 'show ip interface brief' output (including cases with no line breaks
+    between interfaces) and returns a list of strings like:
+    '172.16.50.5 hostname1.gi0-0-0.example.ru'
 
-    Учитываются ВСЕ интерфейсы с назначенным IP, независимо от Status/Protocol
-    (up, down, administratively down) — включая VLAN-интерфейсы (SVI) и Loopback.
-    Интерфейсы с IP-Address == 'unassigned' пропускаются.
+    ALL interfaces with an assigned IP are considered, regardless of Status/Protocol
+    (up, down, administratively down) — including VLAN interfaces (SVI) and Loopback.
+    Interfaces with IP-Address == 'unassigned' are skipped.
     """
 
-    # Сокращения для типов интерфейсов -> как в примере (gi, te, lo, vlan, po...)
+    # Interface type abbreviations -> as in the example (gi, te, lo, vlan, po...)
     short_names = {
         "GigabitEthernet": "gi",
         "TenGigabitEthernet": "te",
@@ -184,15 +182,15 @@ def parse_raw_output(raw_text: str, hostname: str, domain: str) -> list[str]:
     def to_short_name(ifname: str) -> str:
         for full, short in short_names.items():
             if ifname.startswith(full):
-                rest = ifname[len(full):]          # например "0/0/0" или "53"
+                rest = ifname[len(full):]          # e.g., "0/0/0" or "53"
                 rest = rest.replace("/", "-")
                 rest = rest.replace(".", "-")
                 return f"{short}{rest}"
-        # если тип интерфейса не в словаре — просто нормализуем как есть
+        # if the interface type is not in the dictionary, just normalize it as is
         ifname = ifname.replace(".", "-").lower()
         return ifname.replace("/", "-").lower()
 
-    # Паттерн ловит: Interface, IP-Address, OK?, Method, Status(1-3 слова), Protocol
+    # Pattern captures: Interface, IP-Address, OK?, Method, Status (1-3 words), Protocol
     pattern = re.compile(r"^(\S+)\s+"
         r"(\d{1,3}(?:\.\d{1,3}){3}\/\d{1,2}|unassigned)\s+"
         r"(\*?down|up)\s+"
@@ -203,13 +201,13 @@ def parse_raw_output(raw_text: str, hostname: str, domain: str) -> list[str]:
     results = []
     for m in pattern.finditer(raw_text.get("display ip int br")):
         ifname, ip = m.group(1), m.group(2)
-        if ifname.lower() == "interface":   # пропускаем заголовок таблицы
+        if ifname.lower() == "interface":   # skip table header
             continue
-        if ip == "unassigned":              # без IP не учитываем
+        if ip == "unassigned":              # ignore without IP
             continue
-        if ifname.lower().find("loopback") != -1:              # loopback тоже убираем
+        if ifname.lower().find("loopback") != -1:              # remove loopback as well
             continue
-        if ifname.lower().find("meth") != -1:              # loopback тоже убираем
+        if ifname.lower().find("meth") != -1:              # remove management interface as well
             continue
         short_if = to_short_name(ifname)
         results.append(f"{ip.split('/')[0]} {hostname}.{short_if}.{domain}")

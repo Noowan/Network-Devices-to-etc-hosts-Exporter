@@ -55,8 +55,8 @@ class ZabbixAPI:
             "id": self.request_id,
         }
 
-        # Для старых версий Zabbix можно передавать токен
-        # в поле auth JSON-RPC-запроса.
+        # For older Zabbix versions, the token can be passed
+        # in the auth field of the JSON-RPC request.
         if self.auth_mode == "jsonrpc":
             payload["auth"] = self.token
 
@@ -69,27 +69,27 @@ class ZabbixAPI:
             )
             response.raise_for_status()
         except requests.RequestException as exc:
-            raise ExportError(f"Ошибка обращения к Zabbix API: {exc}") from exc
+            raise ExportError(f"Zabbix API request error: {exc}") from exc
 
         try:
             data = response.json()
         except ValueError as exc:
             text = response.text[:500]
             raise ExportError(
-                f"Zabbix вернул не JSON. Начало ответа: {text!r}"
+                f"Zabbix returned non-JSON response. Response start: {text!r}"
             ) from exc
 
         if "error" in data:
             error = data["error"]
             raise ExportError(
-                "Ошибка Zabbix API: "
+                "Zabbix API error: "
                 f"code={error.get('code')}, "
                 f"message={error.get('message')}, "
                 f"data={error.get('data')}"
             )
 
         if "result" not in data:
-            raise ExportError("В ответе Zabbix API отсутствует поле result")
+            raise ExportError("The result field is missing in the Zabbix API response")
 
         return data["result"]
 

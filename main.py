@@ -18,7 +18,105 @@ import Juniper
 import ECI
 
 
-EXCLUDED_TAGS = 'АПКШ', 'Сторона','ШБД', 'Ubuntu','HP','ШРД','Debian'
+def parse_arguments():
+
+    def comma_separated_list(string):
+        if not string:
+            return []
+        return [tag.strip() for tag in string.split(",") if tag.strip()]
+
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Exporting active hosts from the Zabbix API"
+            "and subsequently polling them to generate the /etc/hosts file"
+        )
+    )
+    parser.add_argument(
+        "--url",
+        default=os.getenv("ZABBIX_URL"),
+        help="URL Zabbix, for example https://zabbix.example.local",
+    )
+    parser.add_argument(
+        "--token",
+        default=os.getenv("ZABBIX_TOKEN"),
+        help="API-token Zabbix",
+    )
+    parser.add_argument(
+        "--auth-mode",
+        choices=("bearer", "jsonrpc"),
+        default=os.getenv("ZABBIX_AUTH_MODE", "bearer"),
+        help="Method of auth",
+    )
+    parser.add_argument(
+        "--timeout",
+        type=int,
+        default=int(os.getenv("ZABBIX_TIMEOUT", "30")),
+    )
+    parser.add_argument(
+        "--ca-file",
+        default=os.getenv("ZABBIX_CA_FILE"),
+        help="Path to the internal CA certificate",
+    )
+    parser.add_argument(
+        "--insecure",
+        action="store_true",
+        help="Do not check TLS-cert of Zabbix",
+    )
+    parser.add_argument(
+        "--dry-run",
+        action="store_true",
+        help="Output the result, but do not modify /etc/hosts",
+    )
+    parser.add_argument(
+        "--skip-invalid",
+        action="store_true",
+        help="Skip invalid hosts",
+    )
+    parser.add_argument(
+        "--output",
+        default=os.getenv(
+            "HOSTS_FILE",
+            "/etc/hosts",
+        ),
+        help="Path to output file or /etc/hosts",
+    )
+    parser.add_argument(
+        "--workers",
+        type=int,
+        default=int(os.getenv("MAX_WORKERS", "10")),
+        help="Maximum number of simultaneously polled devices",
+    )
+    parser.add_argument(
+        "--domain",
+        default=os.getenv(
+            "DOMAIN",
+            "example.local",
+        ),
+        help="Domain added to the device's name",
+    )
+    parser.add_argument(
+        "--min_line_ratio",
+        type=float,
+        default=os.getenv(
+            "MIN_LINE_RATIO",
+            "0.9",
+        ),
+        help="Difference in the number of lines before and after the file update",
+    )
+    parser.add_argument(
+        "--excluded-tags",
+        type=comma_separated_list,
+        default=os.getenv(
+            "EXCLUDED_TAGS",
+            "",
+        ),
+        help="Devices with these tags will be removed from the Zabbix API response",
+    )
+
+    return parser.parse_args()
+
+args = parse_arguments()
 DISCOVERY_MARKER = "##########SCRIPT DISCOVERY##########"
 
 def stderr(message):
@@ -67,7 +165,7 @@ def select_address(host):
         interface_type = str(interface.get("type", ""))
         is_main = str(interface.get("main", "0")) == "1"
 
-        # Типы интерфейсов Zabbix:
+        # Zabbix interfaces types:
         # 1 — Agent
         # 2 — SNMP
         # 3 — IPMI
@@ -114,6 +212,7 @@ def select_vendor_and_model(tags):
 
 
 def convert_hosts(hosts):
+
     result = []
     errors = []
 
@@ -121,7 +220,7 @@ def convert_hosts(hosts):
         technical_name = str(host.get("host", "")).strip()
         tags = host.get("tags", [])
 
-        if any(tag.get("tag") in EXCLUDED_TAGS for tag in tags):
+        if any(tag.get("tag") in args.excluded_tags for tag in tags):
             continue
 
         try:
@@ -162,87 +261,6 @@ def convert_hosts(hosts):
     return result
 
 
-def parse_arguments():
-    parser = argparse.ArgumentParser(
-        description=(
-            "Выгрузка активных хостов из Zabbix API "
-            "и их последующий опрос для формирования /etc/hosts файла"
-        )
-    )
-    parser.add_argument(
-        "--url",
-        default=os.getenv("ZABBIX_URL"),
-        help="URL Zabbix, например https://zabbix.example.local",
-    )
-    parser.add_argument(
-        "--token",
-        default=os.getenv("ZABBIX_TOKEN"),
-        help="API-токен Zabbix; безопаснее передавать через ZABBIX_TOKEN",
-    )
-    parser.add_argument(
-        "--auth-mode",
-        choices=("bearer", "jsonrpc"),
-        default=os.getenv("ZABBIX_AUTH_MODE", "bearer"),
-        help="Способ передачи API-токена",
-    )
-    parser.add_argument(
-        "--timeout",
-        type=int,
-        default=int(os.getenv("ZABBIX_TIMEOUT", "30")),
-    )
-    parser.add_argument(
-        "--ca-file",
-        default=os.getenv("ZABBIX_CA_FILE"),
-        help="Путь к внутреннему CA-сертификату",
-    )
-    parser.add_argument(
-        "--insecure",
-        action="store_true",
-        help="Не проверять TLS-сертификат Zabbix",
-    )
-    parser.add_argument(
-        "--dry-run",
-        action="store_true",
-        help="Вывести результат, но не изменять /etc/hosts",
-    )
-    parser.add_argument(
-        "--skip-invalid",
-        action="store_true",
-        help="Пропускать некорректные хосты вместо остановки",
-    )
-    parser.add_argument(
-        "--output",
-        default=os.getenv(
-            "HOSTS_FILE",
-            "/etc/hosts",
-        ),
-        help="Путь к /etc/hosts на Docker-хосте",
-    )
-    parser.add_argument(
-        "--workers",
-        type=int,
-        default=int(os.getenv("MAX_WORKERS", "10")),
-        help="Максимальное количество одновременно опрашиваемых устройств",
-    )
-    parser.add_argument(
-        "--domain",
-        default=os.getenv(
-            "DOMAIN",
-            "example.local",
-        ),
-        help="домен добавляемый к имени железки",
-    )
-    parser.add_argument(
-        "--min_line_ratio",
-        type=float,
-        default=os.getenv(
-            "MIN_LINE_RATIO",
-            "0.9",
-        ),
-        help="Разница между кол-вом строк до и после обновления файла",
-    )
-
-    return parser.parse_args()
 
 
 def sort_devices_by_ip(_devices: list) -> list:
@@ -250,7 +268,6 @@ def sort_devices_by_ip(_devices: list) -> list:
 
 
 def get_interfaces_addresses(_device):
-    args = parse_arguments()
     match _device.get("vendor"):
         case "ECI":
             match _device.get("model"):
@@ -276,10 +293,10 @@ def get_interfaces_addresses(_device):
 
 def poll_device(device):
     """
-    Опрос одного устройства.
+    Poll only one device.
 
-    Функция выполняется в рабочем потоке и не изменяет
-    общие структуры данных.
+    The function executes in a main thread and does not modify
+    shared data structures.
     """
     result = get_interfaces_addresses(device)
     return result or []
@@ -288,7 +305,7 @@ def poll_devices(devices, max_workers):
     interfaces_and_addresses = []
 
     if max_workers < 1:
-        raise ExportError("--workers должен быть больше нуля")
+        raise ExportError("--workers must be > 1")
 
     # Нет смысла создавать больше потоков, чем устройств.
     workers = min(max_workers, len(devices)) if devices else 1
@@ -311,7 +328,7 @@ def poll_devices(devices, max_workers):
                 result = future.result()
             except Exception as exc:
                 stderr(
-                    f"WARNING: ошибка опроса "
+                    f"WARNING: poll error "
                     f"{device_name} ({address}): {exc}"
                 )
                 continue
@@ -320,7 +337,7 @@ def poll_devices(devices, max_workers):
 
             print(
                 f"{device_name} ({address}): "
-                f"получено записей — {len(result)}"
+                f"records received — {len(result)}"
             )
 
     return interfaces_and_addresses
@@ -328,7 +345,7 @@ def poll_devices(devices, max_workers):
 
 def fsync_directory(directory: Path) -> None:
     """
-    Синхронизация каталога после os.replace().
+    Directory synchronization after os.replace()
     """
     directory_fd = os.open(
         directory,
@@ -342,7 +359,7 @@ def fsync_directory(directory: Path) -> None:
 
 def atomic_copy(source: Path, destination: Path) -> None:
     """
-    Атомарное копирование файла.
+    File atomic copy
     """
     temporary_name = None
 
@@ -373,7 +390,7 @@ def atomic_copy(source: Path, destination: Path) -> None:
 
 def rotate_backups(output: Path) -> None:
     """
-    Ротация резервных копий:
+    Backup copies rotation:
 
         hosts.bak.3 -> hosts.bak.4
         hosts.bak.2 -> hosts.bak.3
@@ -405,7 +422,7 @@ def atomic_write(
     content: str,
 ) -> None:
     """
-    Атомарная запись содержимого файла.
+    Atomic write.
     """
     temporary_name = None
     old_stat = output.stat() if output.exists() else None
@@ -462,11 +479,12 @@ def update_hosts_file(
     min_line_ratio: float = 0.5,
 ) -> bool:
     """
-    Обновляет секцию SCRIPT DISCOVERY в hosts-файле.
+    Updates the SCRIPT DISCOVERY section in the hosts file.
 
     records:
-        Подготовленный список строк без необходимости проверки,
-        например:
+        A prepared list of strings that do not require validation,
+        for example:
+
 
         [
             "192.168.0.1 host1.example.ru",
@@ -474,28 +492,27 @@ def update_hosts_file(
         ]
 
     output:
-        Например: Path("/etc/hosts")
+        example: Path("/etc/hosts")
 
     lock_path:
-        Например: Path("/etc/host.lock")
+        example: Path("/etc/host.lock")
 
     min_line_ratio:
-        Минимально допустимое отношение нового количества строк
-        к старому.
+        Minimum allowable ratio of the new number of rows to the old.
 
-        0.5 означает:
-        нельзя заменить файл, если новый файл меньше половины
-        старого по количеству строк.
+        0.5 means:
+        the file cannot be replaced if the new file has fewer than half
+        the number of lines of the old file.
 
-    Возвращает:
+    Returns:
 
-        True  — файл обновлён;
-        False — содержимое уже было таким же.
+        True  — file updated;
+        False — content of file was already the same.
     """
 
     if not 0 < min_line_ratio <= 1:
         raise ValueError(
-            "min_line_ratio должен быть в диапазоне от 0 до 1"
+            "min_line_ratio must be between 0 and 1"
         )
 
     output = Path(output)
@@ -514,7 +531,7 @@ def update_hosts_file(
             )
         except BlockingIOError as exc:
             raise RuntimeError(
-                f"Другая копия программы уже запущена: {lock_path}"
+                f"Another copy of the program already executing: {lock_path}"
             ) from exc
 
         lock_file.seek(0)
@@ -563,7 +580,7 @@ def update_hosts_file(
             and new_line_count < old_line_count * min_line_ratio
         ):
             raise RuntimeError(
-                "Обновление отменено: количество строк уменьшилось "
+                "Update cancelled: the number of rows decreased "
                 f"с {old_line_count} до {new_line_count}"
             )
 
@@ -597,12 +614,12 @@ def main():
 
     if not args.url:
         raise ExportError(
-            "Не задан URL Zabbix. Укажите --url или ZABBIX_URL"
+            "Zabbix URL not specified. Specify --url or ZABBIX_URL in .env file."
         )
 
     if not args.token:
         raise ExportError(
-            "Не задан API-токен. Укажите переменную ZABBIX_TOKEN"
+            "API token not set. Specify the ZABBIX_TOKEN .env variable."
         )
 
     if args.insecure:
@@ -628,7 +645,7 @@ def main():
             )
         except BlockingIOError as exc:
             raise ExportError(
-                "Другой экземпляр уже работает"
+                "Another instance is already running."
             ) from exc
 
         api = ZabbixAPI(
@@ -645,7 +662,11 @@ def main():
 
     sorted_devices = sort_devices_by_ip(devices)
 
-    interfaces_and_addresses = poll_devices(sorted_devices[:10],max_workers=args.workers)
+    interfaces_and_addresses = poll_devices(sorted_devices,max_workers=args.workers)
+    # DEBUG_DEVICES = ["hostname"]
+    # for device in sorted_devices:
+    #     if device.get("name") in DEBUG_DEVICES:
+    #         interfaces_and_addresses = poll_device(device)
 
     #add loopbacks to list
     for device in reversed(sorted_devices):
@@ -661,12 +682,12 @@ def main():
         )
 
         if changed:
-            print(f"Файл {output} обновлён")
+            print(f"File {output} updated")
         else:
-            print(f"Файл {output} уже актуален")
+            print(f"File {output} is already relevant")
 
     except RuntimeError as error:
-        print(f"Ошибка обновления hosts: {error}")
+        print(f"Error of updating hosts file: {error}")
         raise SystemExit(1)
 
     return 0
@@ -680,5 +701,5 @@ if __name__ == "__main__":
         stderr(f"ERROR: {exc}")
         sys.exit(1)
     except KeyboardInterrupt:
-        stderr("ERROR: выполнение прервано")
+        stderr("ERROR: execution interrupted")
         sys.exit(130)
